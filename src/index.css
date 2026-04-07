@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-background: #e8eaf0;
+  --color-cruzeiro-blue: #005BAE;
+  --color-cruzeiro-white: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-slate-800 font-sans;
+  }
+}
+
+@utility neo-raised {
+  box-shadow: 6px 6px 12px rgba(0,0,0,0.08), -6px -6px 12px rgba(255,255,255,0.6);
+}
+
+@utility neo-inset {
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.06), inset -4px -4px 8px rgba(255,255,255,0.5);
+}
+
+@utility neo-button {
+  @apply neo-raised active:neo-inset transition-all duration-200 rounded-2xl bg-background;
+}
