@@ -1,10 +1,5 @@
 # Cabuloso Timing - Documentação do Projeto
 
-## Visão Geral
-
-**Cabuloso Timing** é um jogo de ritmo e reflexos desenvolvido com a temática do **Cruzeiro Esporte Clube**. O objetivo é testar a precisão do jogador ao realizar "chutes ao gol", onde o sucesso depende de acertar o tempo exato em uma barra de oscilação.
-
-O projeto utiliza uma estética **Neomórfica (Soft UI)**, proporcionando uma interface tátil, moderna e limpa, focada na experiência do usuário e na identidade visual do clube.
 
 ---
 
