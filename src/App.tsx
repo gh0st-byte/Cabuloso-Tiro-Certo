@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Settings, Play, Home, BarChart2, ShoppingBag, Star, RefreshCw, X, CheckCircle2 } from 'lucide-react';
+import { Trophy, Settings, Play, Home, BarChart2, ShoppingBag, Star, RefreshCw, X, CheckCircle2, Filter, AlignJustify } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // --- Types ---
@@ -130,7 +130,7 @@ export default function App() {
           referrerPolicy="no-referrer"
         />
       </div>
-      <h1 className="text-cruzeiro-blue font-bold tracking-widest text-lg">CABULOSO TIMING</h1>
+      <h1 className="text-cruzeiro-blue font-bold tracking-widest text-lg">CABULOSO TIRO CERTO</h1>
       <button className="w-10 h-10 rounded-full neo-button flex items-center justify-center text-cruzeiro-blue">
         <Settings size={20} />
       </button>
@@ -166,7 +166,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {gameState === 'start' && (
             <motion.div
-              key="start"
+              key="star"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -178,13 +178,19 @@ export default function App() {
                     animate={{ rotate: 360 }}
                     transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
                   >
-                    <Trophy size={80} className="text-cruzeiro-blue opacity-20" />
+                    <img
+                      src="../assets/estrela-pontiaguda.png"
+                      style={{ filter: 'invert(1)' }}
+                      className='w-50 justify-self-center '
+                      alt="" 
+                      />
+                    {/* <Star size={180} className="text-cruzeiro-blue opacity-30" /> */}
                   </motion.div>
                   <div className="absolute inset-0 flex items-center justify-center">
                     <img 
-                      src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Cruzeiro_Esporte_Clube_logo.svg" 
+                      src="https://imagens.cruzeiro.com.br/Escudos/Cruzeiro.png" 
                       alt="Cruzeiro" 
-                      className="w-24 h-24 drop-shadow-xl"
+                      className="w-20 h-20 "
                       referrerPolicy="no-referrer"
                     />
                   </div>
