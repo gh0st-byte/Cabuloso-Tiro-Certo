@@ -339,7 +339,7 @@ export default function App() {
     ? {
         backgroundImage: `url(${backgroundPlay})`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundPosition: 'center top',
         backgroundRepeat: 'no-repeat',
       }
     : undefined;
@@ -453,10 +453,31 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.1 }}
-              className="flex flex-col items-center gap-12 w-full"
+              className="flex flex-col items-center gap-8 w-full"
             >
+              {/* Destaque visual do gol para reforcar o alvo da jogada. */}
+              <div className="relative w-full h-52 overflow-hidden rounded-[2.5rem] border border-white/30 bg-slate-900/15 shadow-[0_24px_60px_rgba(0,0,0,0.22)] backdrop-blur-[2px]">
+                {/* Camada de contraste para o fundo nao desaparecer atras do HUD. */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/8 via-transparent to-slate-950/35" />
+
+                {/* Estrutura do gol em primeiro plano. */}
+                <div className="absolute inset-x-4 top-4 bottom-5 rounded-t-[2rem] rounded-b-lg border-[5px] border-white/90 shadow-[inset_0_0_0_2px_rgba(0,91,174,0.22)]">
+                  <div className="absolute inset-x-4 top-4 bottom-4 rounded-t-[1.5rem] border border-white/30" />
+                  <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/30" />
+                  <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/25" />
+                  <div className="absolute inset-x-[24%] top-6 bottom-[34%] rounded-b-[1.5rem] border-[3px] border-white/65" />
+                  <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-white/70" />
+                </div>
+
+                {/* Legenda para orientar o chute. */}
+                <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-1 text-center text-white">
+                  <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/75">Alvo</span>
+                  <p className="text-sm font-bold drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">Mire no centro do gol</p>
+                </div>
+              </div>
+
               {/* Painel superior com score, nivel e barra de tempo. */}
-              <div className="w-full neo-raised p-6 rounded-[2.5rem] flex flex-col items-center gap-6">
+              <div className="w-full neo-raised rounded-[2.5rem] border border-white/40 bg-white/72 p-6 backdrop-blur-md flex flex-col items-center gap-6">
                 {/* Linha de status com pontuacao atual e nivel. */}
                 <div className="flex justify-between w-full items-center">
                   <div className="flex flex-col">
@@ -473,7 +494,7 @@ export default function App() {
                 <div className="w-full h-16 neo-inset rounded-2xl relative overflow-hidden flex items-center px-2">
                   {/* Faixa de acerto aceitavel. */}
                   <div 
-                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/10 border-x-2 border-cruzeiro-blue/20"
+                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/10 border-x-2 border-cruzeiro-blue/20 bg-background"
                     style={{ 
                       left: `${50 - LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth / 2}%`,
                       width: `${LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth}%`
