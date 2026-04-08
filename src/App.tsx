@@ -124,9 +124,9 @@ export default function App() {
     <header className="flex items-center justify-between px-6 py-4 w-full max-w-md mx-auto">
       <div className="w-12 h-12 rounded-full neo-raised flex items-center justify-center bg-background">
         <img 
-          src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Cruzeiro_Esporte_Clube_logo.svg" 
+          src="https://www.cruzeiro.com.br/favicon.png" 
           alt="Cruzeiro Logo" 
-          className="w-8 h-8"
+          className="w-12 h-12"
           referrerPolicy="no-referrer"
         />
       </div>
