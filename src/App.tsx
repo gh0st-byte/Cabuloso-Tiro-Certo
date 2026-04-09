@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Settings, Play, Home, BarChart2, ShoppingBag, Star, RefreshCw, X, CheckCircle2, Filter, AlignJustify } from 'lucide-react';
+import { Trophy, Settings, Play, Home, BarChart2, ShoppingBag, Star, RefreshCw, X, CheckCircle2, Heart } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import backgroundPlay from '../assets/backgroundPlay.png';
 
 // --- Types ---
 type GameState = 'start' | 'playing' | 'result';
 
-type TabID = 'home' | 'rankingTab' | 'storeTab';
+type TabID = 'home' | 'ranking' | 'store';
 
 interface GameStats {
   highScore: number;
@@ -53,6 +53,9 @@ const LEVELS: LevelConfig[] = [
   { speed: 5.0, targetWidth: 4 },
 ];
 
+const MAX_ATTEMPTS = 3;
+const DEFAULT_ROUND_MESSAGE = 'Toque em CHUTAR quando o marcador estiver na faixa azul.';
+
 const FOOTER_TABS = [
   { id: 'home', icon: Home, label: 'Home' },
   { id: 'ranking', icon: BarChart2, label: 'Ranking' },
@@ -67,6 +70,9 @@ export default function App() {
   const [stats, setStats] = useState<GameStats>(defaultStats);
 
   const [timing, setTiming] = useState(50);
+  const [attemptsLeft, setAttemptsLeft] = useState(MAX_ATTEMPTS);
+  const [attemptFeedback, setAttemptFeedback] = useState<'perfect' | 'good' | 'miss' | null>(null);
+  const [roundMessage, setRoundMessage] = useState(DEFAULT_ROUND_MESSAGE);
   const [result, setResult] = useState<'perfect' | 'good' | 'miss' | null>(null);
 
   const requestRef = useRef<number | null>(null);
@@ -108,6 +114,18 @@ export default function App() {
     requestRef.current = requestAnimationFrame(updateTiming);
   }, [level]);
 
+  const resetTiming = useCallback(() => {
+    timingRef.current = Math.random() * 100;
+    directionRef.current = Math.random() > 0.5 ? 1 : -1;
+    setTiming(timingRef.current);
+  }, []);
+
+  const resumeRound = useCallback(() => {
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    resetTiming();
+    requestRef.current = requestAnimationFrame(updateTiming);
+  }, [resetTiming, updateTiming]);
+
   useEffect(() => {
     if (gameState === 'playing') {
       requestRef.current = requestAnimationFrame(updateTiming);
@@ -145,11 +163,38 @@ export default function App() {
     }
 
     const nextScore = score + addedScore;
-    setResult(outcome);
+
+    if (outcome === 'miss') {
+      const nextAttemptsLeft = attemptsLeft - 1;
+
+      persistOutcome('miss', score, level);
+      setAttemptFeedback('miss');
+
+      if (nextAttemptsLeft > 0) {
+        setAttemptsLeft(nextAttemptsLeft);
+        setRoundMessage(
+          nextAttemptsLeft === 1
+            ? 'Quase! Você ainda tem 1 tentativa nesta rodada.'
+            : `Quase! Você ainda tem ${nextAttemptsLeft} tentativas nesta rodada.`
+        );
+        resumeRound();
+        return;
+      }
+
+      setAttemptsLeft(0);
+      setResult('miss');
+      setRoundMessage('Suas três tentativas acabaram.');
+      setGameState('result');
+      return;
+    }
+
+    persistOutcome(outcome, nextScore, nextLevel);
+    setAttemptFeedback(outcome);
+    setRoundMessage(outcome === 'perfect' ? 'Perfeito! Bônus máximo garantido.' : 'Boa! Você passou de rodada.');
     setScore(nextScore);
     setLevel(nextLevel);
+    setResult(outcome);
     setGameState('result');
-    persistOutcome(outcome, nextScore, nextLevel);
   };
 
 
@@ -168,11 +213,12 @@ export default function App() {
     setActiveTab('home');
     setGameState('playing');
     setResult(null);
+    setAttemptFeedback(null);
+    setRoundMessage(DEFAULT_ROUND_MESSAGE);
+    setAttemptsLeft(MAX_ATTEMPTS);
     setLevel(nextLevel);
     setScore(nextScore);
-    timingRef.current = Math.random() * 100;
-    directionRef.current = Math.random() > 0.5 ? 1 : -1;
-    setTiming(timingRef.current);
+    resetTiming();
   };
 
   const beginNewGame = () => startRound(0, 0);
@@ -181,6 +227,9 @@ export default function App() {
     setGameState('start');
     setActiveTab('home');
     setResult(null);
+    setAttemptFeedback(null);
+    setRoundMessage(DEFAULT_ROUND_MESSAGE);
+    setAttemptsLeft(MAX_ATTEMPTS);
     setTiming(50);
     timingRef.current = 50;
     directionRef.current = 1;
@@ -233,9 +282,8 @@ export default function App() {
         <button
           key={tab.id}
           onClick={() => handleTabChange(tab.id)}
-          className={`flex flex-col items-center gap-1 px-6 py-2 rounded-2xl transition-all ${
-            activeTab === tab.id ? 'neo-inset text-cruzeiro-blue' : 'text-slate-400'
-          }`}
+          className={`flex flex-col items-center gap-1 px-6 py-2 rounded-2xl transition-all ${activeTab === tab.id ? 'neo-inset text-cruzeiro-blue' : 'text-slate-400'
+            }`}
         >
           <tab.icon size={20} />
           <span className="text-[10px] font-semibold">{tab.label}</span>
@@ -335,26 +383,54 @@ export default function App() {
     </motion.section>
   );
 
-  const appBackgroundStyle = gameState === 'playing'
-    ? {
-        backgroundImage: `url(${backgroundPlay})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center top',
-        backgroundRepeat: 'no-repeat',
-      }
-    : undefined;
+  const showPlayingBackground = gameState === 'playing';
+
+  const currentLevelConfig = LEVELS[Math.min(level, LEVELS.length - 1)];
+  const liveOffsetFromCenter = Math.abs(timing - 50);
+  const perfectZoneWidth = currentLevelConfig.targetWidth / 2;
+  const insidePerfectZone = liveOffsetFromCenter <= perfectZoneWidth / 2;
+  const insideGoodZone = liveOffsetFromCenter <= currentLevelConfig.targetWidth / 2;
+  const currentAttempt = MAX_ATTEMPTS - attemptsLeft + 1;
+  const liveWindowLabel = insidePerfectZone
+    ? 'Agora!'
+    : insideGoodZone
+      ? 'Boa chance!'
+      : 'Espere o centro';
+  const liveWindowTone = insidePerfectZone
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : insideGoodZone
+      ? 'border-sky-200 bg-sky-50 text-cruzeiro-blue'
+      : 'border-slate-200 bg-slate-50 text-slate-600';
+  const roundMessageTone = attemptFeedback === 'miss'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
+    : attemptFeedback === 'perfect'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : attemptFeedback === 'good'
+        ? 'border-sky-200 bg-sky-50 text-cruzeiro-blue'
+        : 'border-slate-200 bg-slate-50 text-slate-600';
 
   return (
     // Container raiz da pagina, com troca de fundo durante a partida.
-    <div
-      className="min-h-screen bg-background flex flex-col items-center overflow-hidden pb-32"
-      style={appBackgroundStyle}
-    >
+    <div className="relative isolate min-h-screen bg-background flex flex-col items-center overflow-x-hidden pb-32">
+      {showPlayingBackground && (
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18),transparent_58%)]" />
+          <img
+            src={backgroundPlay}
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-contain object-center"
+          />
+        </div>
+      )}
+
       {/* Cabecalho fixo do app. */}
-      <Header />
+      <div className="relative z-10 w-full">
+        <Header />
+      </div>
 
       {/* Area central que alterna entre menu, partida e resultado. */}
-      <main className="flex-1 w-full max-w-md flex flex-col items-center justify-center px-6 gap-8">
+      <main className="relative z-10 flex-1 w-full max-w-md flex flex-col items-center justify-center px-6 gap-8">
         <AnimatePresence mode="wait">
           {gameState === 'start' && activeTab === 'home' && (
             // Tela inicial com identidade visual e botao de entrada.
@@ -376,15 +452,15 @@ export default function App() {
                     <img
                       src="../assets/estrela-de-6-pontas.png"
                       className='w-60 h-60 justify-self-center '
-                      alt="" 
-                      />
+                      alt=""
+                    />
                     {/* <Star size={180} className="text-cruzeiro-blue opacity-30" /> */}
                   </motion.div>
                   {/* Escudo centralizado sobre a estrela. */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <img 
-                      src="https://imagens.cruzeiro.com.br/Escudos/Cruzeiro.png" 
-                      alt="Cruzeiro" 
+                    <img
+                      src="https://imagens.cruzeiro.com.br/Escudos/Cruzeiro.png"
+                      alt="Cruzeiro"
                       className="w-25 h-25 "
                       referrerPolicy="no-referrer"
                     />
@@ -453,100 +529,113 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.1 }}
-              className="flex flex-col items-center gap-8 w-full"
+              className="flex flex-col items-center gap-5 w-full"
             >
-              {/* Destaque visual do gol para reforcar o alvo da jogada. */}
-              <div className="relative w-full h-52 overflow-hidden rounded-[2.5rem] border border-white/30 bg-slate-900/15 shadow-[0_24px_60px_rgba(0,0,0,0.22)] backdrop-blur-[2px]">
-                {/* Camada de contraste para o fundo nao desaparecer atras do HUD. */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/8 via-transparent to-slate-950/35" />
-
-                {/* Estrutura do gol em primeiro plano. */}
-                <div className="absolute inset-x-4 top-4 bottom-5 rounded-t-[2rem] rounded-b-lg border-[5px] border-white/90 shadow-[inset_0_0_0_2px_rgba(0,91,174,0.22)]">
-                  <div className="absolute inset-x-4 top-4 bottom-4 rounded-t-[1.5rem] border border-white/30" />
-                  <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/30" />
-                  <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/25" />
-                  <div className="absolute inset-x-[24%] top-6 bottom-[34%] rounded-b-[1.5rem] border-[3px] border-white/65" />
-                  <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-white/70" />
+              <div className="grid w-full grid-cols-3 gap-5">
+                <div className="neo-raised rounded-[2rem] bg-white/84 p-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Rodada</span>
+                  <p className="mt-2 text-3xl font-black text-slate-800">{level + 1}</p>
                 </div>
+                <div className="neo-raised rounded-[2rem] bg-white/84 p-3">
+                  <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Pontuação</span>
+                  <p className="mt-2 text-3xl font-black text-cruzeiro-blue">{score}</p>
+                </div>
+              <div className="w-full neo-raised rounded-[2rem] border border-white/40 bg-white/84 p-3 backdrop-blur-md flex grid grid-cols-1 gap-4">
+                <div className="text-center">
+                  <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Tentativas</span>
+                  <div className="mt-4 flex justify-center gap-3">
+                    {Array.from({ length: MAX_ATTEMPTS }).map((_, index) => {
+                      const isActive = index < attemptsLeft;
+                      return (
+                        <div
+                          key={index}
+                          className={`flex h-12 w-12 items-center justify-center rounded-full  ${
+                            isActive ? ' text-red-500' :'bg-slate-100 text-slate-300'
+                          }`}
+                        >
+                          <Heart size={20} fill={isActive ? 'currentColor' : 'none'} />
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                {/* Legenda para orientar o chute. */}
-                <div className="absolute inset-x-0 bottom-4 flex flex-col items-center gap-1 text-center text-white">
-                  <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/75">Alvo</span>
-                  <p className="text-sm font-bold drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">Mire no centro do gol</p>
                 </div>
               </div>
 
-              {/* Painel superior com score, nivel e barra de tempo. */}
-              <div className="w-full neo-raised rounded-[2.5rem] border border-white/40 bg-white/72 p-6 backdrop-blur-md flex flex-col items-center gap-6">
-                {/* Linha de status com pontuacao atual e nivel. */}
-                <div className="flex justify-between w-full items-center">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Pontuação</span>
-                    <span className="text-2xl font-black text-cruzeiro-blue">{score}</span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase">Nível</span>
-                    <span className="text-2xl font-black text-slate-700">{level + 1}</span>
-                  </div>
-                </div>
 
-                {/* Barra de timing usada para calcular o chute. */}
-                <div className="w-full h-16 neo-inset rounded-2xl relative overflow-hidden flex items-center px-2">
-                  {/* Faixa de acerto aceitavel. */}
-                  <div 
-                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/10 border-x-2 border-cruzeiro-blue/20 bg-background"
-                    style={{ 
-                      left: `${50 - LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth / 2}%`,
-                      width: `${LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth}%`
-                    }}
-                  />
-                  {/* Faixa central de acerto perfeito. */}
-                  <div 
-                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/30"
-                    style={{ 
-                      left: `${50 - LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth / 4}%`,
-                      width: `${LEVELS[Math.min(level, LEVELS.length - 1)].targetWidth / 2}%`
-                    }}
-                  />
-                  
-                  {/* Marcador animado que percorre a barra. */}
-                  <motion.div 
-                    className="w-4 h-12 bg-cruzeiro-blue rounded-full shadow-lg z-10"
-                    style={{ left: `${timing}%`, position: 'absolute', transform: 'translateX(-50%)' }}
-                  />
-                </div>
 
-                {/* Texto de apoio explicando a mecanica do chute. */}
-                <p className="text-xs text-slate-400 font-medium text-center">
-                  Toque quando o marcador estiver no centro azul!
-                </p>
+
               </div>
 
-              {/* Botao principal de acao durante a jogada. */}
+              <div className="w-full neo-raised rounded-[2rem] border border-white/40 bg-white/84 p-5 backdrop-blur-md">
+                <div className="text-center">
+                  <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Como jogar</span>
+                  <h3 className="mt-2 text-xl font-black text-slate-800">Pare o marcador no centro azul</h3>
+                  <p className="mt-2 text-sm text-slate-500">Se errar, você perde uma vida. Ao acertar, avança para a próxima rodada.</p>
+                </div>
+
+                <div className="mt-5 w-full h-20 neo-inset rounded-2xl relative overflow-hidden flex items-center px-2">
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,0.04)_0%,rgba(15,23,42,0.02)_20%,rgba(15,23,42,0.04)_40%,rgba(15,23,42,0.02)_60%,rgba(15,23,42,0.04)_80%,rgba(15,23,42,0.02)_100%)]" />
+                  <div
+                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/10 border-x-2 border-cruzeiro-blue/20"
+                    style={{
+                      left: `${50 - currentLevelConfig.targetWidth / 2}%`,
+                      width: `${currentLevelConfig.targetWidth}%`
+                    }}
+                  />
+                  <div
+                    className="absolute top-0 bottom-0 bg-cruzeiro-blue/25"
+                    style={{
+                      left: `${50 - currentLevelConfig.targetWidth / 4}%`,
+                      width: `${currentLevelConfig.targetWidth / 2}%`
+                    }}
+                  />
+                  <motion.div
+                    className={`absolute z-10 h-12 w-12 rounded-full blur-md ${
+                      insidePerfectZone ? 'bg-emerald-400/30' : insideGoodZone ? 'bg-sky-400/25' : 'bg-slate-400/20'
+                    }`}
+                    style={{ left: `${timing}%`, transform: 'translateX(-50%)' }}
+                    animate={{ scale: [0.95, 1.1, 0.95] }}
+                    transition={{ duration: 0.9, repeat: Infinity }}
+                  />
+                  <motion.div
+                    className={`absolute z-20 h-14 w-5 rounded-full shadow-lg ${
+                      insidePerfectZone ? 'bg-emerald-500' : insideGoodZone ? 'bg-cruzeiro-blue' : 'bg-slate-600'
+                    }`}
+                    style={{ left: `${timing}%`, transform: 'translateX(-50%)' }}
+                  />
+                </div>
+
+                <div className="mt-4 flex items-center justify-between text-xs font-semibold text-slate-500">
+                  <span>Inicio</span>
+                  <span>Centro</span>
+                  <span>Fim</span>
+                </div>
+
+
+              </div>
+
               <button
                 onClick={handleKick}
-                className="w-48 h-48 rounded-full neo-button flex flex-col items-center justify-center gap-2 group"
+                className="w-40 h-40 rounded-full neo-button flex flex-col items-center justify-center gap-3"
               >
-                {/* Icone interno do chute. */}
-                <div className="w-20 h-20 rounded-full bg-cruzeiro-blue flex items-center justify-center text-white shadow-xl group-active:scale-95 transition-transform">
+                <div className="w-20 h-20 rounded-full bg-cruzeiro-blue flex items-center justify-center text-white shadow-xl">
                   <Play fill="currentColor" size={32} className="ml-1" />
                 </div>
-                <span className="font-bold text-cruzeiro-blue tracking-widest">CHUTAR!</span>
+                <span className="font-bold text-base text-cruzeiro-blue tracking-[0.28em]">CHUTAR</span>
               </button>
             </motion.div>
           )}
 
           {gameState === 'result' && (
-            // Tela de resultado apos cada chute.
+            // Tela de resultado apos a rodada.
             <motion.div
               key="result"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex flex-col items-center gap-8 w-full"
             >
-              {/* Card principal com status da jogada e resumo da rodada. */}
               <div className="w-full neo-raised p-8 rounded-[2.5rem] flex flex-col items-center gap-6 text-center">
-                {/* Selo visual do resultado: perfeito, bom ou erro. */}
                 <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
                   result === 'perfect' ? 'bg-green-100 text-green-600' :
                   result === 'good' ? 'bg-blue-100 text-cruzeiro-blue' :
@@ -557,7 +646,6 @@ export default function App() {
                    <X size={48} />}
                 </div>
 
-                {/* Titulo e descricao do resultado da jogada. */}
                 <div className="space-y-1">
                   <h3 className={`text-4xl font-black italic uppercase tracking-tighter ${
                     result === 'perfect' ? 'text-green-600' :
@@ -566,36 +654,36 @@ export default function App() {
                   }`}>
                     {result === 'perfect' ? 'GOLAÇO!' :
                      result === 'good' ? 'GOL!' :
-                     'NA TRAVE!'}
+                     'FIM DE JOGO'}
                   </h3>
                   <p className="text-slate-500 font-medium">
-                    {result === 'perfect' ? 'Tempo perfeito! +100 pts' :
-                     result === 'good' ? 'Bom chute! +50 pts' :
-                     'Você errou o tempo. Tente novamente!'}
+                    {result === 'perfect' ? 'Você acertou em cheio e ganhou 100 pontos.' :
+                     result === 'good' ? 'Boa jogada! Você ganhou 50 pontos.' :
+                     'Suas três tentativas desta rodada acabaram.'}
                   </p>
                 </div>
 
-                {/* Cards resumindo score e nivel apos a jogada. */}
                 <div className="w-full grid grid-cols-2 gap-4 pt-4">
                   <div className="neo-inset p-4 rounded-2xl">
                     <span className="block text-[10px] text-slate-400 font-bold uppercase">Score</span>
                     <span className="text-xl font-bold text-slate-700">{score}</span>
                   </div>
                   <div className="neo-inset p-4 rounded-2xl">
-                    <span className="block text-[10px] text-slate-400 font-bold uppercase">Nível</span>
+                    <span className="block text-[10px] text-slate-400 font-bold uppercase">
+                      {result === 'miss' ? 'Rodada alcançada' : 'Próxima rodada'}
+                    </span>
                     <span className="text-xl font-bold text-slate-700">{level + 1}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Grupo de acoes para continuar ou voltar ao menu. */}
               <div className="flex flex-col gap-4 w-full">
                 <button
-                  onClick={() => result === 'miss' ? startRound(0, 0) : startRound(level, score)}
+                  onClick={() => result === 'miss' ? beginNewGame() : startRound(level, score)}
                   className="w-full py-6 neo-button flex items-center justify-center gap-3 text-xl font-bold text-cruzeiro-blue"
                 >
                   <RefreshCw size={24} />
-                  {result === 'miss' ? 'TENTAR DE NOVO' : 'PRÓXIMO NÍVEL'}
+                  {result === 'miss' ? 'JOGAR DE NOVO' : 'PRÓXIMA RODADA'}
                 </button>
                 <button
                   onClick={goToMenu}
@@ -610,7 +698,9 @@ export default function App() {
       </main>
 
       {/* Navegacao inferior visivel em toda a pagina. */}
-      <Footer />
+      <div className="relative z-10 w-full">
+        <Footer />
+      </div>
     </div>
   );
 }
